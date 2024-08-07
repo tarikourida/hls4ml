@@ -1,7 +1,6 @@
 from hls4ml.backends.backend import get_backend
 from hls4ml.backends.template import FunctionCallTemplate, LayerConfigTemplate
 from hls4ml.model.layers import Activation, BatchNormalization, Dense, HardActivation, ParametrizedActivation, PReLU, Softmax
-from hls4ml.model.optimizer.passes.hgq_proxy_model import UnaryLUT
 
 # Dense templates
 
@@ -145,7 +144,7 @@ activ_include_list = ['nnet_utils/nnet_activation.h', 'nnet_utils/nnet_activatio
 
 class ActivationConfigTemplate(LayerConfigTemplate):
     def __init__(self):
-        super().__init__((Activation, ParametrizedActivation, PReLU, UnaryLUT))
+        super().__init__((Activation, ParametrizedActivation, PReLU))
         self.template = activ_config_template
 
     def format(self, node):

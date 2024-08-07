@@ -10,7 +10,7 @@ import pandas
 import seaborn as sb
 
 from hls4ml.model.graph import ModelGraph
-from hls4ml.model.layers import GRU, LSTM, SeparableConv1D, SeparableConv2D
+from hls4ml.model.layers import GRU, LSTM
 
 try:
     import qkeras
@@ -184,8 +184,6 @@ def types_hlsmodel(model):
     for layer in model.get_layers():
         if isinstance(layer, GRU) or isinstance(layer, LSTM):
             suffix = ['w', 'rw', 'b', 'rb']
-        elif isinstance(layer, SeparableConv1D) or isinstance(layer, SeparableConv2D):
-            suffix = ['dw', 'pw', 'db', 'pb']
         else:
             suffix = ['w', 'b']
         for iw, weight in enumerate(layer.get_weights()):
@@ -227,8 +225,6 @@ def weights_hlsmodel(model, fmt='longform', plot='boxplot'):
     for layer in model.get_layers():
         if isinstance(layer, GRU) or isinstance(layer, LSTM):
             suffix = ['w', 'rw', 'b', 'rb']
-        elif isinstance(layer, SeparableConv1D) or isinstance(layer, SeparableConv2D):
-            suffix = ['dw', 'pw', 'db', 'pb']
         else:
             suffix = ['w', 'b']
         name = layer.name
@@ -273,18 +269,8 @@ def _keras_layer(layer):
     return layer.get_weights(), ['w', 'b']
 
 
-def _keras_lstm(layer):
-    return layer.get_weights(), ['w', 'u', 'b']
-
-
 keras_process_layer_map = defaultdict(
-    lambda: _keras_layer,
-    {
-        'BatchNormalization': _keras_batchnorm,
-        'QBatchNormalization': _keras_batchnorm,
-        'LSTM': _keras_lstm,
-        'QLSTM': _keras_lstm,
-    },
+    lambda: _keras_layer, {'BatchNormalization': _keras_batchnorm, 'QBatchNormalization': _keras_batchnorm}
 )
 
 
@@ -360,7 +346,6 @@ def activations_keras(model, X, fmt='longform', plot='boxplot'):
     outputs = _get_outputs(
         [layer for layer in model.layers if not isinstance(layer, keras.layers.InputLayer)], X, model.input
     )
-    outputs = dict(zip([layer.name for layer in model.layers if not isinstance(layer, keras.layers.InputLayer)], outputs))
     for layer_name, y in outputs.items():
         print(f"   {layer_name}")
         y = y.flatten()
@@ -588,10 +573,9 @@ def get_ymodel_keras(keras_model, X):
         # Note that if the layer is a standalone activation layer then skip this
         name = layer.name
         if (
-            hasattr(layer, 'activation')
-            and layer.activation is not None
+            hasattr(layer, "activation")
+            and layer.activation.__name__ != "linear"
             and not isinstance(layer, (keras.layers.Activation, qkeras.qlayers.QActivation))
-            and layer.activation.__name__ != 'linear'
         ):
             tmp_activation = layer.activation
             layer.activation = None

@@ -21,7 +21,7 @@ def data():
 
 
 @pytest.mark.parametrize('io_type', ['io_parallel', 'io_stream'])
-@pytest.mark.parametrize('backend', ['Vivado', 'Vitis', 'Quartus', 'Catapult'])
+@pytest.mark.parametrize('backend', ['Vivado', 'Vitis', 'Quartus'])
 def test_batchnorm(data, backend, io_type):
     model = nn.Sequential(
         nn.BatchNorm1d(in_shape),

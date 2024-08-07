@@ -1,7 +1,7 @@
 #!/bin/bash
 
 failed=0
-basedir=hls_prj
+basedir=vivado_prj
 all=0
 
 function print_usage {

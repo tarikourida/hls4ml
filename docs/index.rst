@@ -25,7 +25,6 @@
     advanced/fifo_depth
     advanced/extension
     advanced/accelerator
-    advanced/model_optimization
 
 .. toctree::
     :hidden:
@@ -35,7 +34,6 @@
     autodoc/hls4ml.backends
     autodoc/hls4ml.converters
     autodoc/hls4ml.model
-    autodoc/hls4ml.optimization
     autodoc/hls4ml.report
     autodoc/hls4ml.utils
     autodoc/hls4ml.writer

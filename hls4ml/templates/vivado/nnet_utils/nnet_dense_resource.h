@@ -51,7 +51,6 @@ ReuseLoop:
     MultLoop:
         for (int im = 0; im < block_factor; im++) {
             #pragma HLS UNROLL
-
             acc[out_index] += static_cast<typename CONFIG_T::accum_t>(
                 CONFIG_T::template product<data_T, typename CONFIG_T::weight_t>::product(data[in_index], weights[w_index]));
 

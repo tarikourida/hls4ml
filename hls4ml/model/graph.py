@@ -51,15 +51,6 @@ class HLSConfig:
 
         self.pipeline_style = 'pipeline'
 
-        if 'WriterConfig' in self.config:
-            self.writer_config = self.config['WriterConfig']
-        else:
-            self.writer_config = {
-                'Namespace': None,
-                'WriteWeightsTxt': True,
-                'WriteTar': False,
-            }
-
         self._parse_hls_config()
         self._validate_hls_config()
 
@@ -69,14 +60,11 @@ class HLSConfig:
     def get_project_name(self):
         return self.get_config_value('ProjectName')
 
-    def get_project_dir(self):
-        if self.get_config_value('ProjectDir') is not None:
-            return self.get_config_value('ProjectDir')
-        else:
-            return self.get_config_value('ProjectName') + '_prj'
-
     def get_output_dir(self):
         return self.get_config_value('OutputDir')
+
+    def is_Bayes(self):
+        return self.get_config_value('Bayes', default=False)
 
     def get_layer_config_value(self, layer, key, default=None):
         hls_config = self.config['HLSConfig']
@@ -106,7 +94,6 @@ class HLSConfig:
         name_config = hls_config.get('LayerName', {}).get(layer.name, None)
         if name_config is not None:
             layer_config.update(name_config)
-
         return layer_config
 
     def get_precision(self, layer, var='default'):
@@ -191,9 +178,6 @@ class HLSConfig:
             compression = self.model_compression
 
         return compression
-
-    def get_writer_config(self):
-        return self.writer_config
 
     def _parse_hls_config(self):
         hls_config = self.config['HLSConfig']
@@ -380,13 +364,9 @@ class ModelGraph:
             self.apply_flow(flow)
 
     def _find_output_variable_names(self, layer_list, layer_names):
-        """Given a list of all layers, and a list input/output names, find the names of their outputs that will be used
+        """Given a list of all layers, and a list input/output names, find the names of the their outputs that will be used
         as the name of the output variables."""
-        inout_nodes = []
-        for layer_name in layer_names:
-            for node in layer_list:
-                if node['name'] == layer_name:
-                    inout_nodes.append(node)
+        inout_nodes = [node for node in layer_list if node['name'] in layer_names]
         all_node_output_names = [node['outputs'] if 'outputs' in node else [node['name']] for node in inout_nodes]
         return [output for node_output_names in all_node_output_names for output in node_output_names]  # to flatten
 
@@ -493,7 +473,7 @@ class ModelGraph:
         node = layer_cls(self, name, attributes, inputs, outputs)
         for o in node.outputs:
             out_var = node.get_output_variable(output_name=o)
-            if len(self.outputs) == 1 and o in self.outputs:
+            if o in self.outputs:
                 out_var.type.name = 'result_t'
             self.output_vars[o] = out_var
         return node
@@ -595,24 +575,13 @@ class ModelGraph:
             new_node (Layer): The new node
 
         """
-
-        # fmt: off
-        assert len(new_node.inputs) == len(old_node.inputs), \
-            f'{new_node.name} and {old_node.name} have different number of inputs'
-        assert len(new_node.outputs) == len(old_node.outputs), \
-            f'{new_node.name} and {old_node.name} have different number of outputs'
-        # fmt: on
-
-        repl = {old_name: new_name for old_name, new_name in zip(old_node.outputs, new_node.outputs)}
-        repl.update({old_name: new_name for old_name, new_name in zip(old_node.inputs, new_node.inputs)})
-
-        for node in self.graph.values():
-            for i, n in enumerate(node.inputs):
-                if n in repl:
-                    node.inputs[i] = repl[n]
-            for i, n in enumerate(node.outputs):
-                if n in repl:
-                    node.outputs[i] = repl[n]
+        prev_node = self.graph.get(old_node.inputs[0])
+        next_node = next((x for x in self.graph.values() if x.inputs[0] == old_node.outputs[0]), None)
+        if next_node is not None:
+            next_node.inputs[0] = new_node.outputs[0]
+        if prev_node is not None:
+            if new_node.inputs is None or len(new_node.inputs) == 0:  # Check if already rewired
+                new_node.inputs = [prev_node.outputs[0]]
 
         self.graph = OrderedDict((new_node.name, new_node) if k == old_node.name else (k, v) for k, v in self.graph.items())
         self._update_model_outputs()
@@ -641,7 +610,7 @@ class ModelGraph:
         return variables
 
     def register_output_variable(self, out_name, variable):
-        if len(self.outputs) == 1 and out_name in self.outputs:
+        if out_name in self.outputs:
             variable.type.name = 'result_t'
         self.output_vars[out_name] = variable
 
@@ -677,9 +646,7 @@ class ModelGraph:
         Users should call this function if they want to use `predict` functionality for simulation.
         """
         self.write()
-        self._compile()
 
-    def _compile(self):
         lib_name = self.config.backend.compile(self)
         if self._top_function_lib is not None:
             if platform.system() == "Linux":
@@ -751,7 +718,11 @@ class ModelGraph:
 
         return int(n_sample)
 
-    def predict(self, x):
+    def predict_MC(self, x, nSamples):
+        outputs = [self.predict(x, ) for _ in range(nSamples)]
+        return sum(outputs) / len(outputs) 
+
+    def predict(self, x, mask_index=0):
         top_function, ctype = self._get_top_function(x)
         n_samples = self._compute_n_samples(x)
         n_inputs = len(self.get_input_variables())
@@ -773,6 +744,8 @@ class ModelGraph:
                     inp = [np.asarray(xj[i]) for xj in x]
                 argtuple = inp
                 argtuple += predictions
+                # argtuple += [seed]
+                argtuple += [mask_index]
                 argtuple = tuple(argtuple)
                 top_function(*argtuple)
                 output.append(predictions)

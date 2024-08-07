@@ -3,7 +3,6 @@
 
 #include "nnet_common.h"
 #include "nnet_dense.h"
-#include <cstdint>
 
 namespace nnet {
 

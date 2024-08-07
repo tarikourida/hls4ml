@@ -10,7 +10,7 @@ rf=1
 strategy="Latency"
 type="ap_fixed<16,6>"
 yml=""
-basedir=hls_prj
+basedir=vivado_prj
 precision="float"
 sanitizer="[^A-Za-z0-9._]"
 
@@ -43,13 +43,11 @@ function print_usage {
    echo "      Output directory."
    echo "   -y FILE"
    echo "      YAML config file to take HLS config from. If specified, -r, -g and -t are ignored."
-   echo "   -P PYCMD"
-   echo "      python command. Default is 'python'."
    echo "   -h"
    echo "      Prints this help message."
 }
 
-while getopts ":x:b:B:c:sr:g:t:d:y:p:P:h" opt; do
+while getopts ":x:b:B:c:sr:g:t:d:y:p:h" opt; do
    case "$opt" in
    x) part=$OPTARG
       ;;
@@ -72,8 +70,6 @@ while getopts ":x:b:B:c:sr:g:t:d:y:p:P:h" opt; do
    y) yml=$OPTARG
       ;;
    p) precision=$OPTARG
-      ;;
-   P) pycmd=$OPTARG
       ;;
    h)
       print_usage
@@ -144,11 +140,6 @@ do
      echo "    Input: ${precision}" >> ${file}
      echo "    Output: ${precision}" >> ${file}
    fi
-   # Write tarball
-   echo "WriterConfig:" >> ${file}
-   echo "  Namespace: null" >> ${file}
-   echo "  WriteWeightsTxt: true" >> ${file}
-   echo "  WriteTar: true" >> ${file}
 
    ${pycmd} ../scripts/hls4ml convert -c ${file} || exit 1
    rm ${file}

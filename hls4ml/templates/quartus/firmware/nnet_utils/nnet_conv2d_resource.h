@@ -4,7 +4,6 @@
 #include "nnet_common.h"
 #include "nnet_dense.h"
 #include "nnet_helpers.h"
-#include <cstdint>
 
 namespace nnet {
 

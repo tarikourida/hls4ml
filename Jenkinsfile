@@ -1,7 +1,7 @@
 pipeline {
   agent {
     docker {
-      image 'vivado-alma9:1'
+      image 'vivado-el7:3'
       args  '-v /data/Xilinx:/data/Xilinx'
     }
   }
@@ -14,9 +14,8 @@ pipeline {
       steps {
         dir(path: 'test') {
           sh '''#!/bin/bash --login
-              conda activate hls4ml-py310
-              conda install -y jupyterhub pydot graphviz pytest pytest-cov
-              pip install pytest-randomly jupyter onnx>=1.4.0 matplotlib pandas seaborn pydigitalwavetools==1.1 pyyaml tensorflow==2.14 qonnx torch git+https://github.com/google/qkeras.git pyparsing
+              conda activate hls4ml-py38
+              pip install tensorflow pyparsing
               pip install -U ../ --user
               ./convert-keras-models.sh -x -f keras-models.txt
               pip uninstall hls4ml -y'''

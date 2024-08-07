@@ -560,7 +560,6 @@ class Conv2DBatchnorm(Conv2D):
         if self.model.config.is_resource_strategy(self) and self.model.config.backend.name in [
             'Vivado',
             'VivadoAccelerator',
-            'Catapult',
         ]:
             self.weights['weight'].data_unquantized = np.transpose(folded_weights, axes=[3, 0, 1, 2])
             self.weights['weight'].data = self.get_attr('weight_quantizer')(self.weights['weight'].data_unquantized)
@@ -706,6 +705,8 @@ class GlobalPooling2D(Layer):
     _expected_attributes = [
         Attribute('in_height'),
         Attribute('in_width'),
+        # Attribute('out_height'),
+        # Attribute('out_width'),
         Attribute('n_filt'),
         ChoiceAttribute('pool_op', ['Max', 'Average'], configurable=False),
     ]
@@ -846,10 +847,12 @@ class BatchNormalization(Layer):
         dims = inp.dim_names
         self.add_output_variable(shape, dims)
 
-        gamma = self.get_attr('gamma_data')
-        beta = self.get_attr('beta_data')
-        mean = self.get_attr('mean_data')
-        var = self.get_attr('variance_data')
+        gamma = self.model.get_weights_data(self.name, 'gamma')
+        if gamma is None:
+            gamma = 1
+        beta = self.model.get_weights_data(self.name, 'beta')
+        mean = self.model.get_weights_data(self.name, 'moving_mean')
+        var = self.model.get_weights_data(self.name, 'moving_variance')
 
         scale = gamma / np.sqrt(var + self.get_attr('epsilon'))
         bias = beta - scale * mean
@@ -912,34 +915,14 @@ class BiasAdd(Merge):  # TensorFlow's operator that gets merged into Dense/Conv
 
 
 class Resize(Layer):
-    _expected_attributes = [
-        Attribute('in_height'),
-        Attribute('in_width'),
-        Attribute('out_height'),
-        Attribute('out_width'),
-        Attribute('n_chan'),
-        ChoiceAttribute('algorithm', ['nearest', 'bilinear'], default='nearest'),
-        Attribute('align_corners', value_type=bool, default=False),
-    ]
-
     def initialize(self):
         inp = self.get_input_variable()
-
-        if self.get_attr('data_format') == 'channels_last':
-            if len(inp.shape) == 2:  # 1D -> width + chan
-                shape = [self.get_attr('out_width'), self.get_attr('n_chan')]
-                dims = [f'OUT_WIDTH_{self.index}', f'N_CHAN_{self.index}']
-            elif len(inp.shape) == 3:  # 2D -> height + width + chan
-                shape = [self.get_attr('out_height'), self.get_attr('out_width'), self.get_attr('n_chan')]
-                dims = [f'OUT_HEIGHT_{self.index}', f'OUT_WIDTH_{self.index}', f'N_CHAN_{self.index}']
-        else:
-            if len(inp.shape) == 2:  # 1D -> width + chan
-                shape = [self.get_attr('n_chan'), self.get_attr('out_width')]
-                dims = [f'N_CHAN_{self.index}', f'OUT_WIDTH_{self.index}']
-            elif len(inp.shape) == 3:  # 2D -> height + width + chan
-                shape = [self.get_attr('n_chan'), self.get_attr('out_height'), self.get_attr('out_width')]
-                dims = [f'N_CHAN_{self.index}', f'OUT_HEIGHT_{self.index}', f'OUT_WIDTH_{self.index}']
-
+        if len(inp.shape) == 2:  # 1D -> width + chan
+            shape = [self.get_attr('out_width'), self.get_attr('n_chan')]
+            dims = [f'OUT_WIDTH_{self.index}', f'N_CHAN_{self.index}']
+        elif len(inp.shape) == 3:  # 2D -> height + width + chan
+            shape = [self.get_attr('out_height'), self.get_attr('out_width'), self.get_attr('n_chan')]
+            dims = [f'OUT_HEIGHT_{self.index}', f'OUT_WIDTH_{self.index}', f'N_CHAN_{self.index}']
         self.add_output_variable(shape, dims, precision=inp.type.precision)
 
 
@@ -1042,8 +1025,6 @@ class SimpleRNN(Layer):
 
         # biases
         self.add_weights_variable(name='bias', var_name='b{index}')
-        if "pytorch" in self.attributes.keys():
-            self.add_weights_variable(name='recurrent_bias', var_name='br{index}')
 
 
 class LSTM(Layer):
@@ -1095,11 +1076,8 @@ class LSTM(Layer):
         # biases
         self.add_weights_variable(name='bias', var_name='b{index}')
 
-        if "pytorch" in self.attributes.keys():
-            self.add_weights_variable(name='recurrent_bias', var_name='br{index}')
-        else:
-            recurrent_bias = np.zeros(recurrent_weight.shape[1])
-            self.add_weights_variable(name='recurrent_bias', var_name='br{index}', data=recurrent_bias)
+        recurrent_bias = np.zeros(recurrent_weight.shape[1])
+        self.add_weights_variable(name='recurrent_bias', var_name='br{index}', data=recurrent_bias)
 
 
 class GRU(Layer):
@@ -1344,6 +1322,44 @@ class SymbolicExpression(Layer):
         self.add_output_variable([len(self.get_attr('expression'))], [f'N_OUTPUTS_{self.index}'], var_name='y')
 
 
+class BayesianDropout(Layer):
+    _expected_attributes = [
+        Attribute('n_in'),
+        Attribute('drop_rate', value_type=float, default=0.0),
+        Attribute('seed', value_type=int, default=0) 
+    ]
+
+    def initialize(self):
+        inp = self.get_input_variable()
+        shape = inp.shape
+        dims = inp.dim_names
+        self.add_output_variable(shape, dims)
+        self.set_attr('n_in', self.get_input_variable().size())
+        self.set_attr('drop_rate', self.get_attr('drop_rate'))
+        self.set_attr('seed', self.get_attr('seed'))
+
+class Masksembles(Layer):
+    _expected_attributes = [
+        Attribute('n_in'),
+        Attribute('num_masks', value_type=int, default=4),
+        Attribute('scale', value_type=float, default=1.), 
+        Attribute('n_filt', default=1),
+
+        WeightAttribute('weight'),
+        TypeAttribute('weight'),
+    ]
+
+    def initialize(self):
+        inp = self.get_input_variable()
+        shape = inp.shape
+        dims = inp.dim_names
+        self.add_output_variable(shape, dims)
+        self.add_weights(quantizer=self.get_attr('weight_quantizer'))
+        self.set_attr('n_in', self.get_input_variable().size())
+        self.set_attr('num_masks', self.get_attr('num_masks'))
+        self.set_attr('scale', self.get_attr('scale'))
+        self.set_attr('n_filt', self.get_attr('n_filt'))
+
 layer_map = {
     'Input': Input,
     'InputLayer': Input,
@@ -1397,15 +1413,16 @@ layer_map = {
     'SimpleRNN': SimpleRNN,
     'LSTM': LSTM,
     'GRU': GRU,
-    'QSimpleRNN': SimpleRNN,
-    'QLSTM': LSTM,
-    'QGRU': GRU,
     'GarNet': GarNet,
     'GarNetStack': GarNetStack,
     'LayerGroup': LayerGroup,
     'SymbolicExpression': SymbolicExpression,
     # TensorFlow-specific layers:
     'BiasAdd': BiasAdd,
+    # Dropout layer for Bayesian conversion
+    'BayesianDropout'        : BayesianDropout, 
+    # Masksembles layer for Bayesian conversion
+    'Masksembles'            : Masksembles
 }
 
 

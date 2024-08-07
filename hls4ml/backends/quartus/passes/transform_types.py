@@ -1,10 +1,12 @@
-from hls4ml.backends.fpga.fpga_types import ACTypeConverter, HLSTypeConverter, StaticWeightVariableConverter
-from hls4ml.backends.quartus.quartus_types import (
+from hls4ml.backends.fpga.fpga_types import (
+    ACTypeConverter,
+    HLSTypeConverter,
     QuartusArrayVariableConverter,
     QuartusInplaceArrayVariableConverter,
     QuartusInplaceStreamVariableConverter,
     QuartusStreamVariableConverter,
     QuartusStructMemberVariableConverter,
+    StaticWeightVariableConverter,
 )
 from hls4ml.model.optimizer import GlobalOptimizerPass
 from hls4ml.model.types import InplaceTensorVariable

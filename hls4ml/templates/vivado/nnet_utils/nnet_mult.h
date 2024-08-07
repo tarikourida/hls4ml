@@ -69,7 +69,7 @@ template <class x_T, class w_T> class mult : public Product {
   public:
     static auto product(x_T a, w_T w) -> decltype(a * w) {
         // 'Normal' product
-        #pragma HLS INLINE
+        #pragma HLS INLINE  
         return a * w;
     }
 };

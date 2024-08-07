@@ -1,6 +1,5 @@
 from hls4ml.converters.keras_to_hls import get_weights_data, keras_handler, parse_default_keras_layer
-from hls4ml.model.quantizers import BinaryQuantizer, TernaryQuantizer
-from hls4ml.model.types import IntegerPrecisionType
+from hls4ml.model.types import BinaryQuantizer, IntegerPrecisionType, TernaryQuantizer
 
 
 @keras_handler('InputLayer')

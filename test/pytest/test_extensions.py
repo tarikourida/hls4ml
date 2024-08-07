@@ -19,10 +19,6 @@ class KReverse(tf.keras.layers.Layer):
     def call(self, inputs):
         return tf.reverse(inputs, axis=[-1])
 
-    def get_config(self):
-        # Breaks serialization and parsing in hls4ml if not defined
-        return super().get_config()
-
 
 # hls4ml layer implementation
 class HReverse(hls4ml.model.layers.Layer):
